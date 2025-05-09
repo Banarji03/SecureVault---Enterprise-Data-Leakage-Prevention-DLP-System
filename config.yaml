@@ -1,0 +1,16 @@
+database:
+  path: securevault.db
+detection:
+  ml_model_path: models/classifier.pkl
+  sensitivity_threshold: 0.8
+logging:
+  file_path: logs/securevault.log
+  level: INFO
+monitoring:
+  clipboard_check_interval: 1
+  file_patterns:
+  - '*.doc'
+  - '*.docx'
+  - '*.pdf'
+  - '*.txt'
+  screenshot_interval: 5
