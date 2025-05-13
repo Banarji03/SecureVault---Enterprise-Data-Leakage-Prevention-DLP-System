@@ -1,0 +1,19 @@
+# Core dependencies
+pywin32>=305        # Windows system integration
+watchdog>=2.1.9     # File system monitoring
+pyperclip>=1.8.2    # Cross-platform clipboard operations
+
+# Machine Learning
+scikit-learn>=1.0.2  # ML algorithms for data classification
+pandas>=1.4.0       # Data manipulation
+numpy>=1.21.0       # Numerical computations
+
+# Web Dashboard
+flask>=2.0.0        # Web framework
+flask-socketio>=5.1.1 # Real-time updates
+bootstrap-flask>=2.0.0 # UI components
+
+# Utilities
+pyyaml>=6.0         # Configuration management
+loguru>=0.6.0       # Better logging
+cryptography>=37.0.0 # Encryption utilities

@@ -1,0 +1,33 @@
+securevault/
+├── src/
+│   ├── __init__.py
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── file_monitor.py
+│   │   ├── clipboard_monitor.py
+│   │   ├── email_monitor.py
+│   │   └── drive_monitor.py
+│   ├── ml/
+│   │   ├── __init__.py
+│   │   ├── classifier.py
+│   │   └── data_processor.py
+│   ├── policy/
+│   │   ├── __init__.py
+│   │   ├── policy_engine.py
+│   │   └── rules.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── encryption.py
+│   │   └── logger.py
+│   └── gui/
+│       ├── __init__.py
+│       └── dashboard.py
+├── config/
+│   └── config.yaml
+├── tests/
+│   └── __init__.py
+├── logs/
+├── data/
+│   ├── training/
+│   └── sensitive_patterns/
+└── requirements.txt

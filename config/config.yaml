@@ -1,0 +1,28 @@
+clipboard:
+  block_sensitive: true
+  encrypt_sensitive: true
+  max_size: 1048576  # 1MB
+
+file_system:
+  watched_extensions:
+    - .txt
+    - .doc
+    - .docx
+    - .pdf
+    - .xls
+    - .xlsx
+  blocked_paths:
+    - C:/Windows
+    - C:/Program Files
+  encrypt_sensitive: true
+
+email:
+  scan_attachments: true
+  block_sensitive: true
+  allowed_domains:
+    - company.com
+
+external_devices:
+  block_write: false
+  encrypt_transfers: true
+  allowed_devices: []
