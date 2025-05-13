@@ -15,8 +15,16 @@ class SecureVault:
         self.db = Database()
         self.policy_engine = PolicyEngine(self.db)
         self.detection_engine = DetectionEngine(self.policy_engine)
+        
+        # Initialize all monitors
         self.file_monitor = FileMonitor(self.detection_engine)
-        self.app = QApplication(sys.argv)  # Initialize QApplication
+        self.clipboard_monitor = ClipboardMonitor(self.detection_engine)
+        self.screen_monitor = ScreenMonitor(self.detection_engine)
+        self.email_monitor = EmailMonitor(self.detection_engine)
+        self.usb_monitor = USBMonitor(self.detection_engine)
+        self.behavior_monitor = BehaviorMonitor(self.detection_engine)
+        
+        self.app = QApplication(sys.argv)
         self.dashboard = Dashboard(self.policy_engine, self.detection_engine)
 
     def start(self):

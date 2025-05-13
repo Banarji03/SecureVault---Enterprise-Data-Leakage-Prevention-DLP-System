@@ -6,6 +6,50 @@ class PolicyEngine:
         self.db = db
         self.logger = Logger()
         self.policies = self._load_policies()
+        self.roles = self._load_roles()
+        self.user_roles = self._load_user_roles()
+
+    def _load_roles(self):
+        # In production, load from database
+        return {
+            'admin': {
+                'allowed_actions': ['read', 'write', 'delete', 'configure'],
+                'allowed_paths': ['*'],
+                'sensitivity_access': 'all'
+            },
+            'manager': {
+                'allowed_actions': ['read', 'write'],
+                'allowed_paths': ['/department/*', '/shared/*'],
+                'sensitivity_access': 'medium'
+            },
+            'employee': {
+                'allowed_actions': ['read'],
+                'allowed_paths': ['/department/employee/*', '/shared/public/*'],
+                'sensitivity_access': 'low'
+            }
+        }
+
+    def _load_user_roles(self):
+        # In production, load from database
+        return {
+            'user1': 'admin',
+            'user2': 'manager',
+            'user3': 'employee'
+        }
+
+    def apply_policy(self, detection_results):
+        try:
+            user_id = detection_results.get('user_id', 'default')
+            user_role = self.user_roles.get(user_id, 'employee')
+            role_policies = self.roles.get(user_role, {})
+            
+            # Combine role policies with general policies
+            policy = self._get_applicable_policy(detection_results)
+            policy.update(role_policies)
+            
+            self._execute_policy_actions(policy, detection_results)
+        except Exception as e:
+            self.logger.error(f"Error applying policy: {str(e)}")
 
     def _load_policies(self) -> Dict:
         # In production, load from database
@@ -18,13 +62,6 @@ class PolicyEngine:
                 'quarantine_enabled': True
             }
         }
-
-    def apply_policy(self, detection_results: Dict):
-        try:
-            policy = self._get_applicable_policy(detection_results)
-            self._execute_policy_actions(policy, detection_results)
-        except Exception as e:
-            self.logger.error(f"Error applying policy: {str(e)}")
 
     def _get_applicable_policy(self, detection_results: Dict) -> Dict:
         # In production, implement logic to select appropriate policy
