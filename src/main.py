@@ -7,6 +7,12 @@ from core.database import Database
 from gui.dashboard import Dashboard
 from utils.logger import Logger
 from utils.config import Config
+# Add these imports
+from core.clipboard_monitor import ClipboardMonitor
+from core.screen_monitor import ScreenMonitor
+from core.email_monitor import EmailMonitor
+from core.usb_monitor import USBMonitor
+from core.behavior_monitor import BehaviorMonitor
 
 class SecureVault:
     def __init__(self):

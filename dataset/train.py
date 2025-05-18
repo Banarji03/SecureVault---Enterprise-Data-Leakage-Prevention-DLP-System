@@ -9,82 +9,26 @@ from sklearn.model_selection import GridSearchCV
 import joblib
 import re
 
-# Load dataset
-print("📊 Loading dataset...")
-df = pd.read_csv("dataset_full.csv")
-
 # Clean text function
 def preprocess_text(text):
-    if pd.isna(text):
-        return ""
-    text = str(text)
-    text = text.lower()
-    # Keep more special characters to maintain pattern complexity
-    text = re.sub(r"[^\w\s@.:/\-\[\]_\\]+", " ", text)
+    # Keep more special characters for international formats
+    text = re.sub(r"[^\w\s@.:/\-\[\]_\\₹।,]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-# Apply preprocessing
-print("🔄 Preprocessing text...")
-df["clean_content"] = df["content"].apply(preprocess_text)
+# Load dataset
+print("Loading dataset...")
+df = pd.read_csv("dataset_full.csv")
 
-# Add noise to training data
-def add_noise(text):
-    words = text.split()
-    if len(words) > 3:
-        # Randomly drop or duplicate some words
-        if np.random.rand() > 0.7:
-            words = words[1:] if np.random.rand() > 0.5 else words[:-1]
-    return " ".join(words)
+# Clean and prepare the text data
+print("Preprocessing text data...")
+df['clean_content'] = df['content'].apply(preprocess_text)
 
-# Add noisy samples
-print("🔀 Augmenting dataset with variations...")
-noisy_samples = []
-for _, row in df.iterrows():
-    if np.random.rand() > 0.7:  # Add noise to 30% of samples
-        noisy_samples.append({
-            'clean_content': add_noise(row['clean_content']),
-            'label': row['label']
-        })
+# Prepare features and target
+X = df['clean_content']
+y = df['label']
 
-df_noisy = pd.DataFrame(noisy_samples)
-df = pd.concat([df, df_noisy], ignore_index=True)
-
-# Features & labels
-X = df["clean_content"]
-y = df["label"]
-
-# Create pipeline with RandomForest
-print("🛠️ Creating model pipeline...")
-# Add more data augmentation techniques
-def augment_text(text, label):
-    augmented = []
-    words = text.split()
-    
-    # Word dropout with varying rates
-    if len(words) > 4:
-        for rate in [0.1, 0.2]:
-            dropped = words.copy()
-            n_drops = max(1, int(len(words) * rate))
-            indices = np.random.choice(len(words), n_drops, replace=False)
-            for i in sorted(indices, reverse=True):
-                dropped.pop(i)
-            augmented.append((' '.join(dropped), label))
-    
-    # Character noise
-    if label == 'sensitive':
-        for char in [':', '@', '_', '-']:
-            noisy = text.replace(char, f' {char} ')
-            augmented.append((noisy, label))
-        
-        # Add common obfuscation patterns
-        if any(p in text.lower() for p in ['password', 'key', 'token']):
-            obfuscated = text.replace('a', '@').replace('o', '0').replace('i', '1')
-            augmented.append((obfuscated, label))
-    
-    return augmented
-
-# Update pattern features
+# Update pattern features with international support
 def extract_pattern_features(text):
     text_lower = text.lower()
     patterns = {
@@ -92,7 +36,13 @@ def extract_pattern_features(text):
         'has_key': bool(re.search(r'key|t[o0]ken|secret|[a@]pi|[a@]uth', text_lower)),
         'has_ssn': bool(re.search(r'\d{3}-\d{2}-\d{4}|ssn|social security', text_lower)),
         'has_email': bool(re.search(r'[a@]|em[a@]il|e-m[a@]il', text_lower)),
-        'has_money': bool(re.search(r'\$|\d+k|\d+m|revenue|forecast|financial|budget', text_lower)),
+        'has_account_number': bool(re.search(r'\d{4}[-\s]?\d{4}[-\s]?\d{4}|account.*?\d+|card.*?\d+', text_lower)),
+        'has_routing_number': bool(re.search(r'\b\d{9}\b', text_lower)),
+        'has_investment_data': bool(re.search(r'portfolio|stocks|yield|investment|ira', text_lower)),
+        'has_money': bool(re.search(r'\$|\d+k|\d+m|₹|lpa|revenue|forecast|financial|\d+[,.]\d{2}', text_lower)),
+        'has_international_id': bool(re.search(r'\d{4}[\s-]?\d{4}[\s-]?\d{4}|[A-Z]{5}\d{4}[A-Z]|आधार|पैन|بطاقة', text_lower)),
+        'has_medical_data': bool(re.search(r'patient|diagnosis|prescription|insurance|medical|doctor|hospital|treatment|code[:\s]+[A-Z]\d+', text_lower)),
+        'has_hr_data': bool(re.search(r'candidate|ctc|background|verification|recruitment|employee', text_lower)),
         'has_confidential': bool(re.search(r'confidential|sensitive|private|internal|restricted|nda', text_lower)),
         'is_form_related': bool(re.search(r'form|field|input|login|signup|register|ui|interface', text_lower)),
         'is_documentation': bool(re.search(r'doc|documentation|manual|guide|readme|instruction|example|template', text_lower)),
@@ -100,62 +50,81 @@ def extract_pattern_features(text):
     }
     return patterns
 
-# Improve context-aware prediction
+# Improve context-aware prediction with confidence thresholds
+# Update prediction rules
 def predict_with_context(model, text):
     patterns = extract_pattern_features(text)
     text_lower = text.lower()
     
+    # Get base prediction
     pred = model.predict([text])[0]
     prob = max(model.predict_proba([text])[0])
     
-    # Clear sensitive data patterns
-    if patterns['has_ssn'] or re.search(r'\d{3}-\d{2}-\d{4}', text_lower):
+    # Strong sensitive indicators
+    if any([
+        patterns['has_account_number'],
+        patterns['has_international_id'],
+        patterns['has_medical_data'],
+        patterns['has_confidential'] and (patterns['has_money'] or patterns['has_key'])
+    ]):
         return 'sensitive', 0.95
     
-    # API and Key handling
-    if patterns['has_key']:
-        if re.search(r'sk_live_|api_key|secret_key|private_key', text_lower):
-            return 'sensitive', 0.95
-        if patterns['is_documentation'] and patterns['is_public_context']:
-            return 'safe', 0.8
+    return pred, prob
+        # Financial data
+    if patterns['has_account_number'] or patterns['has_routing_number'] or patterns['has_investment_data']:
+        return 'sensitive', 0.95
     
-    # Password handling
-    if patterns['has_password']:
-        if re.search(r'password[\s]*:[\s]*\S+', text_lower):
-            return 'sensitive', 0.95
-        if patterns['is_form_related'] and not patterns['has_confidential']:
-            return 'safe', 0.8
+    # API and Credentials
+    if patterns['has_api_key'] or patterns['has_jwt']:
+        return 'sensitive', 0.95
     
-    # Confidential content
-    if patterns['has_confidential']:
-        if any([patterns['has_money'], patterns['has_key'], patterns['has_email']]):
+    # International IDs
+    if patterns['has_aadhar'] or patterns['has_pan'] or patterns['has_international_id']:
+        return 'sensitive', 0.95
+    
+    # Healthcare and HR
+    if patterns['has_medical_data'] or patterns['has_hr_data']:
+        if not patterns['is_public_context']:
             return 'sensitive', 0.90
-        return 'sensitive', 0.85
     
-    # Financial data
-    if patterns['has_money']:
-        if patterns['has_confidential']:
-            return 'sensitive', 0.90
-        if patterns['is_public_context']:
-            return 'safe', 0.80
+    # High confidence rules (95%)
+    if any([
+        patterns['has_international_id'],
+        patterns['has_medical_data'],
+        re.search(r'api[_\s]?key[=:]?\s*\w+|token[=:]?\s*[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+', text_lower)
+    ]):
+        return 'sensitive', 0.95
     
+    # Medium confidence rules (90%)
+    if any([
+        patterns['has_hr_data'] and not patterns['is_public_context'],
+        patterns['has_money'] and patterns['has_confidential']
+    ]):
+        return 'sensitive', 0.90
+    
+    # Lower confidence rules (80%)
+    if patterns['is_documentation'] and patterns['is_public_context']:
+        return 'safe', 0.80
+        
     return pred, prob
 
+# Modify the RandomForestClassifier parameters
 # Modify the pipeline parameters
+# Update pipeline parameters
+# Update pipeline parameters
 pipeline = Pipeline([
     ('tfidf', TfidfVectorizer(
-        max_features=5000,
-        ngram_range=(1, 3),
-        min_df=2,
-        max_df=0.95,
-        analyzer='char_wb',  # Use character n-grams for better pattern recognition
-        strip_accents='unicode'
+        max_features=1500,
+        ngram_range=(1, 3),    # Capture longer phrases
+        min_df=3,              # Allow rarer terms
+        max_df=0.85,
+        analyzer='char_wb'      # Better for international text
     )),
     ('classifier', RandomForestClassifier(
-        n_estimators=200,
-        max_depth=20,  # Limit tree depth to prevent overfitting
-        min_samples_split=10,
-        min_samples_leaf=4,
+        n_estimators=200,      # More trees
+        max_depth=8,           # Slightly deeper
+        min_samples_split=8,
+        min_samples_leaf=3,
         class_weight='balanced',
         random_state=42
     ))
@@ -170,6 +139,15 @@ param_grid = {
     'classifier__min_samples_split': [5, 10],
     'classifier__min_samples_leaf': [2, 4]
 }
+
+# Remove these lines as they're causing the error
+# Add noisy samples to the dataframe
+# noisy_df = pd.DataFrame(noisy_samples)
+# df = pd.concat([df, noisy_df], ignore_index=True)
+
+# Prepare features and target
+X = df['clean_content']
+y = df['label']
 
 # Add validation set
 X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.3, random_state=42)
@@ -217,7 +195,7 @@ def extract_pattern_features(text):
     text_lower = text.lower()
     patterns = {
         'has_password': bool(re.search(r'password|pwd', text_lower)),
-        'has_key': bool(re.search(r'key|token|secret|api|auth', text_lower)),
+        'has_key': bool(re.search(r'key|t[o0]ken|secret|[a@]pi|[a@]uth', text_lower)),
         'has_ssn': bool(re.search(r'\d{3}-\d{2}-\d{4}|ssn|social security', text_lower)),
         'has_email': bool(re.search(r'@|email|e-mail', text_lower)),
         'has_money': bool(re.search(r'\$|\d+k|\d+m|revenue|forecast|financial', text_lower)),
@@ -290,23 +268,21 @@ class PatternTransformer(BaseEstimator, TransformerMixin):
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import FunctionTransformer
 
+# Suggested modifications to prevent overfitting
 pipeline = Pipeline([
-    ('features', ColumnTransformer([
-        ('tfidf', TfidfVectorizer(
-            max_features=3000,
-            ngram_range=(1, 3),
-            min_df=2,
-            max_df=0.95
-        ), 'clean_content'),
-        ('patterns', PatternTransformer(), 'clean_content')
-    ])),
+    ('tfidf', TfidfVectorizer(
+        max_features=1500,    # Reduced features
+        ngram_range=(1, 2),    # Simpler n-grams
+        min_df=5,             # More restrictive
+        max_df=0.85           # More restrictive
+    )),
     ('classifier', RandomForestClassifier(
-        n_estimators=200,
-        max_depth=15,
-        min_samples_split=5,
-        min_samples_leaf=2,
-        class_weight='balanced',
-        random_state=42
+        n_estimators=100,
+        max_depth=6,          # Reduced depth
+        min_samples_split=15,  # Increased
+        min_samples_leaf=5,    # Increased
+        bootstrap=True,
+        oob_score=True        # Enable out-of-bag scoring
     ))
 ])
 
@@ -345,6 +321,35 @@ example_texts = [
     "Please update your password in the login form",
     "API Documentation: password field is required"
 ]
+
+print("\nPredictions for example texts:")
+for text in example_texts:
+    pred, conf = predict_with_context(grid_search.best_estimator_, text)
+    print(f"Text: {text}")
+    print(f"Prediction: {pred}")
+    print(f"Confidence: {conf:.3f}\n")
+
+# Update train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, 
+    test_size=0.2,
+    stratify=y,          # Ensure balanced split
+    random_state=42
+)
+
+# Add after model creation - Fix the cross-validation code
+scores = cross_val_score(grid_search.best_estimator_, X_train, y_train, cv=5)
+print(f"Cross-validation scores: {scores.mean():.2f} (+/- {scores.std() * 2:.2f})")
+
+example_texts.extend([
+    "Statement Period: 01 Jan 2024 - 31 Jan 2024\nAccount Number: 1234-5678-9876",
+    "API_KEY=AIzaSyDc_49uhF8gkFDPqR77a5kMvfxbL-0Ot1w",
+    "मेरा आधार संख्या 5674 2321 8877 है।",
+    "Patient Name: Sarah Holmes\nDiagnosis Code: E11.9",
+    "Candidate: Rahul Mehra\nPAN: BNGPM8262K\nExpected CTC: ₹9.5 LPA",
+    "Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "रقم البطاقة هو 1234-5678-9876"
+])
 
 print("\nPredictions for example texts:")
 for text in example_texts:

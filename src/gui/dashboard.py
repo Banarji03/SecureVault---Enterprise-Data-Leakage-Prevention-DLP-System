@@ -397,13 +397,16 @@ class Dashboard(QMainWindow):
         
         # Incident Summary
         if self.report_types['incident_summary'].isChecked():
-            incidents = self.policy_engine.db.get_incidents(start_date, end_date)
+            # Get all incidents and filter by date in memory
+            incidents = self.policy_engine.db.get_incidents()
+            incidents = [i for i in incidents
+                        if start_date <= datetime.fromisoformat(i['timestamp']).date() <= end_date]
             total = len(incidents)
             sensitive = sum(1 for i in incidents if i['severity'] == 'high')
             report_content.append(
                 f"Incident Summary (Total: {total}):\n"
                 f"- High Severity: {sensitive}\n"
-                f"- Detection Rate: {sensitive/total*100:.1f}%\n"
+                f"- Detection Rate: {(sensitive/total*100 if total > 0 else 0):.1f}%\n"
             )
 
         # Pattern Analysis
@@ -486,3 +489,56 @@ class Dashboard(QMainWindow):
         if hasattr(self, 'current_notification'):
             self.current_notification.close()
         self.notification_timer.stop()
+
+
+    def show_add_policy_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle('Add New Policy')
+        dialog.setModal(True)
+        
+        layout = QFormLayout(dialog)
+        
+        # Policy name input
+        name_input = QLineEdit()
+        layout.addRow('Policy Name:', name_input)
+        
+        # Policy type selection
+        type_combo = QComboBox()
+        type_combo.addItems(['Data Transfer', 'Content Access', 'Device Usage'])
+        layout.addRow('Policy Type:', type_combo)
+        
+        # Policy description
+        desc_input = QTextEdit()
+        layout.addRow('Description:', desc_input)
+        
+        # Action selection
+        action_combo = QComboBox()
+        action_combo.addItems(['Block', 'Alert', 'Log'])
+        layout.addRow('Action:', action_combo)
+        
+        # Buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addRow(button_box)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            # Add the new policy
+            self.policy_engine.add_policy({
+                'name': name_input.text(),
+                'type': type_combo.currentText(),
+                'description': desc_input.toPlainText(),
+                'action': action_combo.currentText(),
+                'created_at': datetime.now().isoformat()
+            })
+            self.refresh_policies()
+
+    def refresh_policies(self):
+        self.policy_list.clear()
+        policies = self.policy_engine.get_policies()
+        for policy in policies:
+            item = QListWidgetItem(f"{policy['name']} - {policy['type']}")
+            item.setData(Qt.UserRole, policy)
+            self.policy_list.addItem(item)

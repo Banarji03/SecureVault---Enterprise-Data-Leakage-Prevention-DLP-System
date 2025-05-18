@@ -52,14 +52,17 @@ class PolicyEngine:
             self.logger.error(f"Error applying policy: {str(e)}")
 
     def _load_policies(self) -> Dict:
-        # In production, load from database
         return {
             'default': {
                 'actions': ['log', 'alert'],
                 'sensitivity_threshold': 0.8,
-                'blocked_patterns': ['credit_card', 'ssn'],
+                'blocked_patterns': [
+                    'credit_card', 'ssn', 'aadhar', 'pan',
+                    'api_key', 'jwt_token', 'medical_id', 'routing_number'
+                ],
                 'allowed_destinations': ['internal_network'],
-                'quarantine_enabled': True
+                'quarantine_enabled': True,
+                'language_support': ['en', 'hi', 'ar', 'fr']
             }
         }
 
@@ -91,3 +94,26 @@ class PolicyEngine:
             self.logger.info(f"Quarantining file: {file_path}")
         except Exception as e:
             self.logger.error(f"Error quarantining file {file_path}: {str(e)}")
+
+    def add_policy(self, policy_data: Dict):
+        try:
+            policy_name = policy_data.get('name')
+            if not policy_name:
+                raise ValueError("Policy name is required")
+                
+            self.policies[policy_name] = {
+                'actions': policy_data.get('actions', ['log']),
+                'sensitivity_threshold': policy_data.get('sensitivity_threshold', 0.8),
+                'blocked_patterns': policy_data.get('blocked_patterns', []),
+                'allowed_destinations': policy_data.get('allowed_destinations', []),
+                'quarantine_enabled': policy_data.get('quarantine_enabled', True)
+            }
+            self.logger.info(f"Added new policy: {policy_name}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error adding policy: {str(e)}")
+            return False
+
+    def get_policies(self) -> Dict:
+        """Return all configured policies"""
+        return self.policies
