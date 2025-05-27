@@ -22,3 +22,8 @@ An Enterprise Data Leakage Prevention (DLP) System with real-time monitoring and
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
+### To Run
+
+1. Run the simulation:
+   ```bash
+   python main.py
